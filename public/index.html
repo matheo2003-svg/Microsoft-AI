@@ -20,72 +20,12 @@
 </head>
 <body>
 
+
+
+
+
+    
 <div id="map"></div>
-
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<script>
-  // Initialize the map centered on South Africa
-  var map = L.map('map').setView([-30.5595, 22.9375], 5); // Lat/Lng of SA
-
-  // Use OpenStreetMap tiles
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
-
-  const API_KEY = '3be5c8cd8ccb0a17c108f5b9996bcc39';
-
-  const cities = [
-    { name: 'Durban', coords: [-29.8587, 31.0218] },
-    { name: 'Cape Town', coords: [-33.9249, 18.4241] },
-    { name: 'Johannesburg', coords: [-26.2041, 28.0473] },
-    { name: 'Pretoria', coords: [-25.7479, 28.2293] }
-  ];
-
-  // Weather categories and color mapping
-  function getColor(weatherMain) {
-    if (weatherMain.includes('rain')) return 'blue';
-    if (weatherMain.includes('clear')) return 'orange';
-    if (weatherMain.includes('cloud')) return 'gray';
-    if (weatherMain.includes('snow')) return 'lightblue';
-    return 'red'; // default color for other weather types
-  }
-
-  // Fetch weather data for each city
-  cities.forEach(city => {
-    fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city.name},ZA&appid=${API_KEY}&units=metric`)
-      .then(res => res.json())
-      .then(data => {
-        const weather = data.weather[0];
-        const description = weather.description;
-        const temperature = data.main.temp;
-        const weatherMain = weather.main.toLowerCase();
-        const color = getColor(weatherMain);
-
-        // Add city marker with weather status
-        L.circleMarker(city.coords, {
-          radius: 10,
-          fillColor: color,
-          color: 'black',
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        })
-        .addTo(map)
-        .bindPopup(`
-          <b>${city.name}</b><br>
-          🌤️ ${description}<br>
-          🌡️ Temp: ${temperature}°C
-        `);
-      })
-      .catch(err => {
-        console.error(`Failed to load weather for ${city.name}:`, err);
-      });
-  });
-</script>
-
 <!-- Weather Legend -->
 <div id="legend" style="
   position: absolute;
@@ -105,6 +45,73 @@
   <span style="color: lightblue;">●</span> Snow<br>
   <span style="color: red;">●</span> Other
 </div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+  // Initialize the map centered on South Africa
+  var map = L.map('map').setView([-30.5595, 22.9375], 5); // Lat/Lng of SA
+
+  // Use OpenStreetMap tiles
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  const API_KEY = '3be5c8cd8ccb0a17c108f5b9996bcc39';
+
+
+  // Weather categories and color mapping
+  function getColor(weatherMain) {
+    if (weatherMain.includes('rain')) return 'blue';
+    if (weatherMain.includes('clear')) return 'orange';
+    if (weatherMain.includes('cloud')) return 'gray';
+    if (weatherMain.includes('snow')) return 'lightblue';
+    return 'red'; // default color for other weather types
+  }
+  
+  if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(position => {
+    const userLat = position.coords.latitude;
+    const userLon = position.coords.longitude;
+
+    fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEY}&units=metric`)
+      .then(res => res.json())
+      .then(data => {
+        const weather = data.weather[0];
+        const description = weather.description;
+        const temperature = data.main.temp;
+        const weatherMain = weather.main.toLowerCase();
+        const color = getColor(weatherMain);
+
+        L.circleMarker([userLat, userLon], {
+          radius: 10,
+          fillColor: color,
+          color: 'black',
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        })
+        .addTo(map)
+        .bindPopup(`
+          <b>Your Location</b><br>
+          🌤️ ${description}<br>
+          🌡️ Temp: ${temperature}°C
+        `)
+        .openPopup();
+
+        map.setView([userLat, userLon], 7); // Optional: zoom to user
+      });
+  }, error => {
+    console.error("Geolocation failed:", error.message);
+  });
+} else {
+  alert("Geolocation is not supported by your browser.");
+}
+
+</script>
+
 
 </body>
 </html>
