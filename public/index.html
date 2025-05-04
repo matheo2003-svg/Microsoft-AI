@@ -4,13 +4,94 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flood & Drought Alert Map</title>
-
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script>tailwind.config={theme:{extend:{colors:{primary:'#3b82f6',secondary:'#f59e0b'},borderRadius:{'none':'0px','sm':'4px',DEFAULT:'8px','md':'12px','lg':'16px','xl':'20px','2xl':'24px','3xl':'32px','full':'9999px','button':'8px'}}}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+  <style>
+      :where([class^="ri-"])::before { content: "\f3c2"; }
+      body {
+          font-family: 'Inter', sans-serif;
+      }
+      .map-container {
+          height: 100vh;
+          width: 60%;
+      }
+      .info-panel {
+          width: 40%;
+          height: 100vh;
+          overflow-y: auto;
+      }
+      .custom-toggle:checked + .toggle-bg {
+          background-color: #3b82f6;
+      }
+      .custom-toggle:checked + .toggle-bg .toggle-dot {
+          transform: translateX(100%);
+      }
+      .custom-checkbox:checked + .checkbox-icon {
+          background-color: #3b82f6;
+          border-color: #3b82f6;
+      }
+      .custom-checkbox:checked + .checkbox-icon:after {
+          content: '';
+          position: absolute;
+          left: 6px;
+          top: 3px;
+          width: 5px;
+          height: 10px;
+          border: solid white;
+          border-width: 0 2px 2px 0;
+          transform: rotate(45deg);
+      }
+      .range-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: #3b82f6;
+          cursor: pointer;
+      }
+      .range-slider::-moz-range-thumb {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: #3b82f6;
+          cursor: pointer;
+      }
+      .alert-high {
+          border-left: 4px solid #ef4444;
+      }
+      .alert-medium {
+          border-left: 4px solid #f59e0b;
+      }
+      .alert-low {
+          border-left: 4px solid #10b981;
+      }
+  </style>
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     #map {
-      height: 100vh;
-      width: 100%;
+        position: absolute;
+         top: 0;
+         left: 0;
+         width: 100%;
+         height: 100;
+         z-index: 1;
+    }
+    #map-layers{
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: white;
+        padding: 10px;
+        z-index: 1000;
+        pointer-events: auto;
     }
     body, html {
       margin: 0;
@@ -18,7 +99,955 @@
     }
   </style>
 </head>
-<body>
+<body class="bg-gray-50 text-gray-800">
+
+
+
+
+
+
+    <div class="flex h-screen">
+        <!-- Map Section -->
+        <div class="map-container relative">
+            <div id="map" class="h-full w-full"></div>
+           
+            <!-- Map Controls -->
+            <div class="absolute top-4 right-4 bg-white p-3 rounded shadow-md z-10">
+                <div class="text-sm font-semibold mb-2">Map Layers</div>
+                <div class="space-y-2">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="floodLayer" class="custom-checkbox opacity-0 absolute h-5 w-5 cursor-pointer">
+                        <div class="checkbox-icon relative w-5 h-5 border border-gray-300 rounded flex items-center justify-center mr-2"></div>
+                        <label for="floodLayer" class="text-sm cursor-pointer">Flood Zones</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="droughtLayer" class="custom-checkbox opacity-0 absolute h-5 w-5 cursor-pointer">
+                        <div class="checkbox-icon relative w-5 h-5 border border-gray-300 rounded flex items-center justify-center mr-2"></div>
+                        <label for="droughtLayer" class="text-sm cursor-pointer">Drought Areas</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="forecastLayer" class="custom-checkbox opacity-0 absolute h-5 w-5 cursor-pointer">
+                        <div class="checkbox-icon relative w-5 h-5 border border-gray-300 rounded flex items-center justify-center mr-2"></div>
+                        <label for="forecastLayer" class="text-sm cursor-pointer">Weather Forecast</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="resourcesLayer" class="custom-checkbox opacity-0 absolute h-5 w-5 cursor-pointer">
+                        <div class="checkbox-icon relative w-5 h-5 border border-gray-300 rounded flex items-center justify-center mr-2"></div>
+                        <label for="resourcesLayer" class="text-sm cursor-pointer">Emergency Resources</label>
+                    </div>
+                </div>
+            </div>
+           
+           <!-- Weather Legend -->
+<div id="legend" style="
+position: absolute;
+bottom: 30px;
+left: 10px;
+background: white;
+padding: 10px;
+border-radius: 6px;
+box-shadow: 0 0 10px rgba(0,0,0,0.3);
+font-size: 14px;
+line-height: 1.5;
+">
+<strong>Weather Legend:</strong><br>
+<span style="color: blue;">●</span> Rain<br>
+<span style="color: orange;">●</span> Clear<br>
+<span style="color: gray;">●</span> Cloudy<br>
+<span style="color: lightblue;">●</span> Snow<br>
+<span style="color: red;">●</span> Other
+</div>
+
+
+
+
+            <!-- Map Legend -->
+            <div class="absolute bottom-4 left-4 bg-white p-3 rounded shadow-md z-10">
+                <div class="text-sm font-semibold mb-2">Legend</div>
+                <div class="space-y-1 text-xs">
+                    <div class="flex items-center">
+                        <div  class="w-4 h-4 rounded-full bg-blue-500 mr-2"></div>
+                        <span></span> Rain<br>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded-full bg-gray-500 mr-2"></div>
+                        <span></span> Cloudy<br>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded-full bg-blue-200 mr-2"></div>
+                        <span></span> Snow<br>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded-full bg-orange-500 mr-2"></div>
+                        <span></span> Clear<br>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded-full bg-red-500 mr-2"></div>
+                        <span></span> Other
+                    </div>
+                </div>
+            </div>
+           
+            <!-- Emergency Button -->
+            <div class="absolute bottom-4 right-4 z-10">
+                <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-button flex items-center shadow-lg">
+                    <div class="w-5 h-5 flex items-center justify-center mr-2">
+                        <i class="ri-alarm-warning-fill ri-lg"></i>
+                    </div>
+                    <span class="whitespace-nowrap font-semibold">Emergency</span>
+                </button>
+            </div>
+        </div>
+       
+        <!-- Info Panel -->
+        <div class="info-panel bg-white shadow-lg p-4 overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <div class="w-8 h-8 flex items-center justify-center mr-2">
+                        <i class="ri-radar-line ri-xl text-primary"></i>
+                    </div>
+                    <span>Disaster Monitor</span>
+                </h1>
+                <div class="flex space-x-2">
+                    <button class="bg-gray-100 hover:bg-gray-200 p-2 rounded-full !rounded-button">
+                        <div class="w-5 h-5 flex items-center justify-center">
+                            <i class="ri-notification-3-line"></i>
+                        </div>
+                    </button>
+                    <button class="bg-gray-100 hover:bg-gray-200 p-2 rounded-full !rounded-button">
+                        <div class="w-5 h-5 flex items-center justify-center">
+                            <i class="ri-settings-3-line"></i>
+                        </div>
+                    </button>
+                </div>
+            </div>
+           
+            <!-- Search Bar -->
+            <div class="relative mb-6">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <div class="w-5 h-5 flex items-center justify-center text-gray-400">
+                        <i class="ri-search-line"></i>
+                    </div>
+                </div>
+                <input type="text" class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-button focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="Search locations...">
+            </div>
+           
+            <!-- Tabs -->
+            <div class="mb-6">
+                <div class="flex bg-gray-100 p-1 rounded-full">
+                    <button class="flex-1 py-2 px-4 rounded-full bg-primary text-white font-medium text-sm !rounded-full">Weather</button>
+                    <button class="flex-1 py-2 px-4 rounded-full text-gray-600 font-medium text-sm !rounded-full">Alerts</button>
+                    <button class="flex-1 py-2 px-4 rounded-full text-gray-600 font-medium text-sm !rounded-full">Communities</button>
+                    <button class="flex-1 py-2 px-4 rounded-full text-gray-600 font-medium text-sm !rounded-full">Resources</button>
+                </div>
+            </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--display current user location data-->
+
+            <div class="max-w-md mx-auto">
+                <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg shadow-sm">
+                  <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Current Weather</h2>
+                    <div class="flex items-center text-sm text-gray-500">
+                      <span class="location-name">Loading...</span>
+                      <div class="w-5 h-5 flex items-center justify-center ml-1">
+                        <i class="ri-map-pin-line"></i>
+                      </div>
+                    </div>
+                  </div>
+            
+                  <div class="flex justify-between">
+                    <div>
+                      <div class="text-4xl font-bold temperature">--°C</div>
+                      <div class="text-sm text-gray-600 feels-like">Feels like --°C</div>
+                      <div class="mt-2 text-sm description">Loading...</div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                      <div class="w-16 h-16 flex items-center justify-center">
+                        <i class="weather-icon ri-3x text-yellow-500 ri-cloud-line"></i>
+                      </div>
+                      <div class="text-sm mt-1 date">Loading...</div>
+                    </div>
+                  </div>
+            
+                  <div class="grid grid-cols-3 gap-4 mt-4">
+                    <div class="bg-white/70 p-2 rounded">
+                      <div class="text-xs text-gray-500">Wind</div>
+                      <div class="flex items-center">
+                        <i class="ri-windy-line text-blue-500 mr-1"></i>
+                        <span class="font-medium wind">-- km/h</span>
+                      </div>
+                    </div>
+                    <div class="bg-white/70 p-2 rounded">
+                      <div class="text-xs text-gray-500">Humidity</div>
+                      <div class="flex items-center">
+                        <i class="ri-drop-line text-blue-500 mr-1"></i>
+                        <span class="font-medium humidity">--%</span>
+                      </div>
+                    </div>
+                    <div class="bg-white/70 p-2 rounded">
+                      <div class="text-xs text-gray-500">Rainfall</div>
+                      <div class="flex items-center">
+                        <i class="ri-showers-line text-blue-500 mr-1"></i>
+                        <span class="font-medium rain">-- mm</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+              <script>
+                const apiKey = "3be5c8cd8ccb0a17c108f5b9996bcc39";
+            
+                const iconMap = {
+                  "Clear": "ri-sun-fill",
+                  "Clouds": "ri-cloudy-fill",
+                  "Rain": "ri-showers-fill",
+                  "Drizzle": "ri-drizzle-fill",
+                  "Thunderstorm": "ri-thunderstorms-fill",
+                  "Snow": "ri-snowy-fill",
+                  "Mist": "ri-foggy-fill"
+                };
+            
+                function fetchWeather(lat, lon) {
+                  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`;
+            
+                  fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                      document.querySelector('.location-name').innerText = data.name;
+                      document.querySelector('.temperature').innerText = `${Math.round(data.main.temp)}°C`;
+                      document.querySelector('.feels-like').innerText = `Feels like ${Math.round(data.main.feels_like)}°C`;
+                      document.querySelector('.description').innerText = data.weather[0].description;
+                      document.querySelector('.wind').innerText = `${data.wind.speed} km/h`;
+                      document.querySelector('.humidity').innerText = `${data.main.humidity}%`;
+                      document.querySelector('.rain').innerText = `${data.rain?.['1h'] || 0} mm`;
+                      document.querySelector('.date').innerText = new Date().toLocaleDateString();
+            
+                      const iconClass = iconMap[data.weather[0].main] || "ri-cloud-line";
+                      const iconEl = document.querySelector('.weather-icon');
+                      iconEl.className = `weather-icon ri-3x text-yellow-500 ${iconClass}`;
+                    })
+                    .catch(err => {
+                      alert("Weather data fetch failed.");
+                      console.error(err);
+                    });
+                }
+            
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      fetchWeather(pos.coords.latitude, pos.coords.longitude);
+                      fetchForecast(pos.coords.latitude, pos.coords.longitude);
+                      fetch7DayForecast(pos.coords.latitude, pos.coords.longitude);
+                    },
+                    () => alert("Location access denied.")
+                  );
+                } else {
+                  alert("Geolocation not supported.");
+                }
+              </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+           
+           
+            <!-- Forecast Chart -->
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold mb-4">24-Hour Forecast</h2>
+                <div class="bg-white border border-gray-100 rounded-lg shadow-sm p-4 h-48">
+                    <div id="forecastChart" class="w-full h-full"></div>
+                </div>
+            </div>
+<script>
+
+
+function fetchForecast(lat, lon) {
+  const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      const hours = data.list.slice(0, 8); // 24-hour data (3-hour intervals)
+
+      const labels = hours.map(entry => {
+        const date = new Date(entry.dt * 1000);
+        return `${date.getHours()}:00`;  // Time in hours:minutes
+      });
+
+      const temps = hours.map(entry => entry.main.temp);  // Temperature data
+
+      // ECharts configuration
+      const chartDom = document.getElementById('forecastChart');
+      const myChart = echarts.init(chartDom);
+
+      const option = {
+        title: {
+          text: '24-Hour Forecast',
+          left: 'center'
+        },
+        tooltip: {
+          trigger: 'axis'
+        },
+        xAxis: {
+          type: 'category',
+          data: labels,
+          axisLabel: {
+            rotate: 45
+          }
+        },
+        yAxis: {
+          type: 'value',
+          name: 'Temperature (°C)',
+          min: Math.min(...temps) - 5, // Add a little space for clarity
+          max: Math.max(...temps) + 5
+        },
+        series: [
+          {
+            data: temps,
+            type: 'line',
+            smooth: true,
+            lineStyle: {
+              color: '#3b82f6'
+            },
+            areaStyle: {
+              color: 'rgba(59, 130, 246, 0.2)'
+            },
+            symbol: 'circle',
+            symbolSize: 6
+          }
+        ]
+      };
+
+      // Set the chart options
+      myChart.setOption(option);
+    })
+    .catch(err => {
+      console.error("Error fetching forecast data:", err);
+    });
+}
+
+
+ </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            <!-- Weekly Trend -->
+<div class="mb-6">
+    <h2 class="text-lg font-semibold mb-4">7-Day Forecast</h2>
+    <div class="space-y-2">
+        <!-- Day 1: Monday -->
+        <div id="day-1" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+
+        <!-- Day 2: Tuesday -->
+        <div id="day-2" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+
+        <!-- Day 3: Wednesday -->
+        <div id="day-3" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+
+        <!-- Day 4: Thursday -->
+        <div id="day-4" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+
+        <!-- Day 5: Friday -->
+        <div id="day-5" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+
+        <!-- Day 6: Saturday -->
+        <div id="day-6" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+
+        <!-- Day 7: Sunday -->
+        <div id="day-7" class="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+            <div class="flex items-center">
+                <div class="w-8 h-8 flex items-center justify-center mr-3">
+                    <img class="weather-icon" src="" alt="Weather icon" />
+                </div>
+                <span class="day-name">Loading...</span>
+            </div>
+            <div class="flex items-center">
+                <span class="text-gray-500 mr-2 min-temp">--°C</span>
+                <span class="font-medium max-temp">--°C</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+           
+<script>
+ function fetch7DayForecast(lat, lon) {
+  const apiKey = "3035f3cc8eaa76852b6ff041a294a24e";
+  const url = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+
+        console.log(data);
+
+      const dailyData = data.daily.slice(0, 7); // Get 7 days of forecast
+
+      // Iterate over each day and update the UI
+      const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      
+      dailyData.forEach((day, index) => {
+        const dayElement = document.getElementById(`day-${index + 1}`);
+
+        const dayName = daysOfWeek[new Date(day.dt * 1000).getDay()];
+        const minTemp = day.temp.min;
+        const maxTemp = day.temp.max;
+
+        // Get weather icon
+        const icon = day.weather[0].icon;
+        const iconUrl = `https://openweathermap.org/img/wn/${icon}@2x.png`;
+        console.log(iconUrl);
+
+        // Update the DOM elements
+        dayElement.querySelector(".day-name").innerText = dayName;
+        dayElement.querySelector(".min-temp").innerText = `${minTemp}°C`;
+        dayElement.querySelector(".max-temp").innerText = `${maxTemp}°C`;
+        dayElement.querySelector(".weather-icon").src = iconUrl;
+      });
+    })
+    .catch(err => {
+      console.error("Error fetching 7-day forecast data:", err);
+    });
+}
+
+</script>
+
+
+
+     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            <!-- Alerts Section -->
+            <div class="mb-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Active Alerts</h2>
+                    <button class="text-primary text-sm font-medium flex items-center">
+                        <span>View All</span>
+                        <div class="w-4 h-4 flex items-center justify-center ml-1">
+                            <i class="ri-arrow-right-s-line"></i>
+                        </div>
+                    </button>
+                </div>
+               
+                <div class="space-y-3">
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm alert-high">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 flex items-center justify-center mr-3 bg-red-100 rounded-full text-red-500">
+                                    <i class="ri-flood-fill"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-medium">Flash Flood Warning</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Khayelitsha and surrounding areas</p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-500">1h ago</span>
+                        </div>
+                        <div class="mt-2 text-sm">
+                            Heavy rainfall expected to continue for next 6 hours. Possible flooding in low-lying areas.
+                        </div>
+                    </div>
+                   
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm alert-medium">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 flex items-center justify-center mr-3 bg-yellow-100 rounded-full text-yellow-500">
+                                    <i class="ri-windy-fill"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-medium">Strong Wind Advisory</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Cape Town Metropolitan Area</p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-500">3h ago</span>
+                        </div>
+                        <div class="mt-2 text-sm">
+                            Winds of 40-60 km/h expected. Secure loose objects and exercise caution when driving.
+                        </div>
+                    </div>
+                   
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm alert-low">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-start">
+                                <div class="w-8 h-8 flex items-center justify-center mr-3 bg-green-100 rounded-full text-green-500">
+                                    <i class="ri-water-percent-line"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-medium">Water Conservation Notice</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Northern Cape Province</p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-500">1d ago</span>
+                        </div>
+                        <div class="mt-2 text-sm">
+                            Ongoing drought conditions. Residents advised to conserve water and follow restrictions.
+                        </div>
+                    </div>
+                </div>
+               
+                <div class="mt-4">
+                    <h3 class="text-md font-medium mb-3">Notification Preferences</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm">SMS Alerts</span>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" class="custom-toggle opacity-0 absolute h-0 w-0" checked>
+                                <div class="toggle-bg bg-gray-200 w-12 h-6 rounded-full flex items-center p-1 transition-colors duration-300">
+                                    <div class="toggle-dot bg-white w-4 h-4 rounded-full shadow-md transform duration-300"></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm">USSD Notifications</span>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" class="custom-toggle opacity-0 absolute h-0 w-0">
+                                <div class="toggle-bg bg-gray-200 w-12 h-6 rounded-full flex items-center p-1 transition-colors duration-300">
+                                    <div class="toggle-dot bg-white w-4 h-4 rounded-full shadow-md transform duration-300"></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm">Email Digests</span>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" class="custom-toggle opacity-0 absolute h-0 w-0" checked>
+                                <div class="toggle-bg bg-gray-200 w-12 h-6 rounded-full flex items-center p-1 transition-colors duration-300">
+                                    <div class="toggle-dot bg-white w-4 h-4 rounded-full shadow-md transform duration-300"></div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+           
+            <!-- Communities Section -->
+            <div class="mb-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Vulnerable Communities</h2>
+                    <div class="relative">
+                        <select class="appearance-none bg-gray-100 border-none rounded-button py-1 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option>All Regions</option>
+                            <option>Western Cape</option>
+                            <option>Eastern Cape</option>
+                            <option>Northern Cape</option>
+                            <option>Gauteng</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                            <div class="w-4 h-4 flex items-center justify-center text-gray-500">
+                                <i class="ri-arrow-down-s-line"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+               
+                <div class="space-y-3">
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                        <div class="flex justify-between">
+                            <h3 class="font-medium">Khayelitsha</h3>
+                            <div class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">High Risk</div>
+                        </div>
+                        <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">Population:</span>
+                                <span class="font-medium">391,749</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Coordinates:</span>
+                                <span class="font-medium">-34.0349, 18.6580</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Current Risk:</span>
+                                <span class="font-medium text-red-600">Flooding</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Vulnerability:</span>
+                                <span class="font-medium">Very High</span>
+                            </div>
+                        </div>
+                    </div>
+                   
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                        <div class="flex justify-between">
+                            <h3 class="font-medium">Soweto</h3>
+                            <div class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">Medium Risk</div>
+                        </div>
+                        <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">Population:</span>
+                                <span class="font-medium">1,271,628</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Coordinates:</span>
+                                <span class="font-medium">-26.2485, 27.8540</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Current Risk:</span>
+                                <span class="font-medium text-yellow-600">Storms</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Vulnerability:</span>
+                                <span class="font-medium">Moderate</span>
+                            </div>
+                        </div>
+                    </div>
+                   
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                        <div class="flex justify-between">
+                            <h3 class="font-medium">Alexandra</h3>
+                            <div class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">High Risk</div>
+                        </div>
+                        <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">Population:</span>
+                                <span class="font-medium">179,624</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Coordinates:</span>
+                                <span class="font-medium">-26.1068, 28.1065</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Current Risk:</span>
+                                <span class="font-medium text-red-600">Flooding</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Vulnerability:</span>
+                                <span class="font-medium">High</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+               
+                <div class="mt-6">
+                    <h3 class="text-md font-medium mb-3">Historical Vulnerability</h3>
+                    <div class="bg-white border border-gray-100 rounded-lg p-4 shadow-sm h-48">
+                        <div id="vulnerabilityChart" class="w-full h-full"></div>
+                    </div>
+                </div>
+            </div>
+           
+            <!-- Resources Section -->
+            <div class="mb-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Emergency Resources</h2>
+                    <button class="bg-primary hover:bg-primary/90 text-white px-3 py-1 rounded-button text-sm flex items-center">
+                        <div class="w-4 h-4 flex items-center justify-center mr-1">
+                            <i class="ri-add-line"></i>
+                        
+                        
+                        
+                        
+                        </div>
+                        <span>Report</span>
+                    </button>
+                </div>
+               
+                <div class="space-y-3">
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 flex items-center justify-center mr-3 bg-red-100 rounded-full text-red-500">
+                                <i class="ri-hospital-line ri-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium">Emergency Medical Services</h3>
+                                <p class="text-sm text-gray-600 mt-1">National Emergency Response</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-between">
+                            <div class="flex items-center text-sm text-primary">
+                                <div class="w-4 h-4 flex items-center justify-center mr-1">
+                                    <i class="ri-phone-fill"></i>
+                                </div>
+                                <span>10177</span>
+                            </div>
+                            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-button text-sm !rounded-button">Show on Map</button>
+                        </div>
+                    </div>
+                   
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 flex items-center justify-center mr-3 bg-blue-100 rounded-full text-blue-500">
+                                <i class="ri-government-line ri-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium">Disaster Management Centre</h3>
+                                <p class="text-sm text-gray-600 mt-1">Cape Town</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-between">
+                            <div class="flex items-center text-sm text-primary">
+                                <div class="w-4 h-4 flex items-center justify-center mr-1">
+                                    <i class="ri-phone-fill"></i>
+                                </div>
+                                <span>021 597 5000</span>
+                            </div>
+                            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-button text-sm !rounded-button">Show on Map</button>
+                        </div>
+                    </div>
+                   
+                    <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 flex items-center justify-center mr-3 bg-green-100 rounded-full text-green-500">
+                                <i class="ri-home-heart-line ri-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium">Emergency Shelter</h3>
+                                <p class="text-sm text-gray-600 mt-1">Khayelitsha Community Hall</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-between">
+                            <div class="flex items-center text-sm text-primary">
+                                <div class="w-4 h-4 flex items-center justify-center mr-1">
+                                    <i class="ri-map-pin-fill"></i>
+                                </div>
+                                <span>Site C, Khayelitsha</span>
+                            </div>
+                            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-button text-sm !rounded-button">Show on Map</button>
+                        </div>
+                    </div>
+                </div>
+               
+                <div class="mt-6">
+                    <h3 class="text-md font-medium mb-3">Resource Distribution</h3>
+                    <div class="bg-white border border-gray-100 rounded-lg p-4 shadow-sm h-48">
+                        <div id="resourcesChart" class="w-full h-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
 
 <div id="map"></div>
 
@@ -106,27 +1135,314 @@
         console.error(`Failed to load weather for ${city.name}:`, err);
       });
   });
+
+
+
+
+
+
+
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Map
+        
+           
+            // Add base map layer
+           
+            // Add city markers
+            
+           
+           
+           
+            // Layer controls functionality
+            document.getElementById('floodLayer').addEventListener('change', function() {
+                // Toggle flood layer visibility
+            });
+           
+            document.getElementById('droughtLayer').addEventListener('change', function() {
+                // Toggle drought layer visibility
+            });
+           
+            document.getElementById('forecastLayer').addEventListener('change', function() {
+                // Toggle forecast layer visibility
+            });
+           
+            document.getElementById('resourcesLayer').addEventListener('change', function() {
+                // Toggle resources layer visibility
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Forecast Chart
+            const forecastChart = echarts.init(document.getElementById('forecastChart'));
+           
+            const forecastOption = {
+                animation: false,
+                grid: {
+                    top: 10,
+                    right: 10,
+                    bottom: 30,
+                    left: 40
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ['Now', '3 PM', '6 PM', '9 PM', '12 AM', '3 AM', '6 AM', '9 AM'],
+                    axisLabel: {
+                        color: '#1f2937'
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#e5e7eb'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 15,
+                    max: 30,
+                    axisLabel: {
+                        formatter: '{value}°C',
+                        color: '#1f2937'
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#e5e7eb'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: '#f3f4f6'
+                        }
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderColor: '#e5e7eb',
+                    textStyle: {
+                        color: '#1f2937'
+                    },
+                    formatter: function(params) {
+                        return params[0].name + ': ' + params[0].value + '°C';
+                    }
+                },
+                series: [{
+                    data: [23, 25, 24, 22, 20, 19, 18, 21],
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: {
+                        width: 3,
+                        color: 'rgba(87, 181, 231, 1)'
+                    },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [{
+                                offset: 0,
+                                color: 'rgba(87, 181, 231, 0.2)'
+                            }, {
+                                offset: 1,
+                                color: 'rgba(87, 181, 231, 0.05)'
+                            }]
+                        }
+                    }
+                }]
+            };
+           
+            forecastChart.setOption(forecastOption);
+           
+            // Initialize Vulnerability Chart
+            const vulnerabilityChart = echarts.init(document.getElementById('vulnerabilityChart'));
+           
+            const vulnerabilityOption = {
+                animation: false,
+                grid: {
+                    top: 10,
+                    right: 10,
+                    bottom: 30,
+                    left: 40
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderColor: '#e5e7eb',
+                    textStyle: {
+                        color: '#1f2937'
+                    }
+                },
+                legend: {
+                    data: ['Floods', 'Droughts'],
+                    bottom: 0,
+                    textStyle: {
+                        color: '#1f2937'
+                    }
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ['2020', '2021', '2022', '2023', '2024', '2025'],
+                    axisLabel: {
+                        color: '#1f2937'
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#e5e7eb'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        formatter: '{value}',
+                        color: '#1f2937'
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#e5e7eb'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: '#f3f4f6'
+                        }
+                    }
+                },
+                series: [{
+                    name: 'Floods',
+                    type: 'bar',
+                    data: [12, 15, 18, 14, 22, 19],
+                    itemStyle: {
+                        color: 'rgba(87, 181, 231, 1)',
+                        borderRadius: 4
+                    }
+                }, {
+                    name: 'Droughts',
+                    type: 'bar',
+                    data: [8, 14, 20, 25, 16, 10],
+                    itemStyle: {
+                        color: 'rgba(252, 141, 98, 1)',
+                        borderRadius: 4
+                    }
+                }]
+            };
+           
+            vulnerabilityChart.setOption(vulnerabilityOption);
+           
+            // Initialize Resources Chart
+            const resourcesChart = echarts.init(document.getElementById('resourcesChart'));
+           
+            const resourcesOption = {
+                animation: false,
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderColor: '#e5e7eb',
+                    textStyle: {
+                        color: '#1f2937'
+                    }
+                },
+                legend: {
+                    orient: 'horizontal',
+                    bottom: 0,
+                    textStyle: {
+                        color: '#1f2937'
+                    }
+                },
+                series: [{
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 8,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: {
+                        show: false
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            formatter: '{b}: {c} ({d}%)',
+                            fontSize: 12
+                        }
+                    },
+                    labelLine: {
+                        show: false
+                    },
+                    data: [
+                        { value: 35, name: 'Shelters', itemStyle: { color: 'rgba(87, 181, 231, 1)' } },
+                        { value: 25, name: 'Medical', itemStyle: { color: 'rgba(141, 211, 199, 1)' } },
+                        { value: 20, name: 'Water', itemStyle: { color: 'rgba(251, 191, 114, 1)' } },
+                        { value: 15, name: 'Food', itemStyle: { color: 'rgba(252, 141, 98, 1)' } },
+                    ]
+                }]
+            };
+           
+            resourcesChart.setOption(resourcesOption);
+           
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                forecastChart.resize();
+                if (document.getElementById('vulnerabilityChart')) {
+                    vulnerabilityChart.resize();
+                }
+                if (document.getElementById('resourcesChart')) {
+                    resourcesChart.resize();
+                }
+            });
+        });
+
+        // Tab switching functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('.bg-gray-100.p-1.rounded-full button');
+            const tabContents = document.querySelectorAll('.info-panel > div:nth-child(n+4):nth-child(-n+7)');
+           
+            tabButtons.forEach((button, index) => {
+                button.addEventListener('click', () => {
+                    // Update button styles
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('bg-primary', 'text-white');
+                        btn.classList.add('text-gray-600');
+                    });
+                    button.classList.add('bg-primary', 'text-white');
+                    button.classList.remove('text-gray-600');
+                   
+                    // Show corresponding content
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                   
+                    if (index === 0) {
+                        tabContents[0].classList.remove('hidden');
+                        tabContents[1].classList.remove('hidden');
+                    } else if (index === 1) {
+                        tabContents[2].classList.remove('hidden');
+                    } else if (index === 2) {
+                        tabContents[3].classList.remove('hidden');
+                    } else if (index === 3) {
+                        tabContents[4].classList.remove('hidden');
+                    }
+                });
+            });
+        });
+
+
+
+
+
+
+
+
+
+
+
 </script>
 
-<!-- Weather Legend -->
-<div id="legend" style="
-  position: absolute;
-  bottom: 30px;
-  left: 10px;
-  background: white;
-  padding: 10px;
-  border-radius: 6px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.3);
-  font-size: 14px;
-  line-height: 1.5;
-">
-  <strong>Weather Legend:</strong><br>
-  <span style="color: blue;">●</span> Rain<br>
-  <span style="color: orange;">●</span> Clear<br>
-  <span style="color: gray;">●</span> Cloudy<br>
-  <span style="color: lightblue;">●</span> Snow<br>
-  <span style="color: red;">●</span> Other
-</div>
 
 </body>
 </html>
